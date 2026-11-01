@@ -5,7 +5,7 @@ from datetime import datetime
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
-# Esquema Pydantic para la respuesta de entregas activas
+# Esquema Pydantic para la respuesta de entregas
 class OrderResponse(BaseModel):
     id: str
     tracking_number: str
@@ -26,7 +26,7 @@ class ProofSubmission(BaseModel):
     signature: str
     timestamp: datetime
 
-# Base de datos en memoria temporal (permite actualizar estados en tiempo real)
+# Base de datos en memoria temporal
 fake_orders_db = [
     {
         "id": "ord-001",
@@ -44,16 +44,19 @@ fake_orders_db = [
 # 1. Endpoint para obtener entregas activas (Filtra las que ya fueron entregadas)
 @router.get("/active", response_model=List[OrderResponse])
 def get_active_orders():
-    # Devuelve únicamente los pedidos cuyo estado NO sea "entregado"
     return [order for order in fake_orders_db if order["status"] != "entregado"]
 
-# 2. Endpoint para completar la entrega con foto, firma y actualización de estado
+# 2. Endpoint GET general para la lista completa (¡Este faltaba y causaba el 404!)
+@router.get("/", response_model=List[OrderResponse])
+def get_all_orders():
+    return fake_orders_db
+
+# 3. Endpoint para completar la entrega con foto y firma
 @router.post("/{order_id}/complete")
 def complete_order(order_id: str, proof: ProofSubmission):
     print(f"Recibida evidencia para la orden {order_id} a las {proof.timestamp}")
     print(f"Ruta de foto: {proof.photo_path}")
     
-    # Buscamos el pedido en la lista y actualizamos su estado a "entregado"
     updated = False
     clean_id = order_id.replace('#', '').strip()
     
