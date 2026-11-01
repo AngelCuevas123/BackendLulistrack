@@ -9,23 +9,22 @@ import schemas
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
-# 1. Endpoint para obtener entregas activas conectado a Supabase (filtrando las ya entregadas)
+# 1. Endpoint GET para obtener las entregas activas desde Supabase (filtrando las ya entregadas)
 @router.get("/active", response_model=List[schemas.OrderResponse])
 def get_active_orders(db: Session = Depends(database.get_db)):
     try:
-        # Filtramos para que los pedidos con estado "entregado" ya no aparezcan en la app del conductor
         active_orders = db.query(models.OrderDB).filter(models.OrderDB.status != "entregado").all()
         return active_orders
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 2. Endpoint opcional para obtener todos los pedidos
+# 2. Endpoint GET general para todos los pedidos
 @router.get("/", response_model=List[schemas.OrderResponse])
 def get_orders(db: Session = Depends(database.get_db)):
     orders = db.query(models.OrderDB).all()
     return orders
 
-# 3. Endpoint POST para registrar un nuevo pedido en la base de datos
+# 3. Endpoint POST para registrar un nuevo pedido
 @router.post("/", response_model=schemas.OrderResponse, status_code=status.HTTP_201_CREATED)
 def create_order(order_data: schemas.OrderResponse, db: Session = Depends(database.get_db)):
     existing = db.query(models.OrderDB).filter(models.OrderDB.tracking_number == order_data.tracking_number).first()
@@ -48,15 +47,13 @@ def create_order(order_data: schemas.OrderResponse, db: Session = Depends(databa
     db.refresh(new_order)
     return new_order
 
-# 4. Endpoint para completar la entrega con foto y firma (Actualiza a 'entregado' en Supabase)
+# 4. Endpoint para completar la entrega (¡Al final para evitar conflictos de rutas!)
 @router.post("/{order_id}/complete")
 def complete_order(order_id: str, proof: schemas.ProofSubmission, db: Session = Depends(database.get_db)):
-    # Limpieza estricta del ID por si trae símbolos extra
     clean_id = order_id.replace('#', '').strip()
     
     order = db.query(models.OrderDB).filter(models.OrderDB.id == clean_id).first()
     if not order:
-        # Intento secundario buscando por coincidencia exacta si el ID original tenía variaciones
         order = db.query(models.OrderDB).filter(models.OrderDB.id == order_id).first()
         if not order:
             raise HTTPException(status_code=404, detail="Pedido no encontrado")
@@ -68,6 +65,6 @@ def complete_order(order_id: str, proof: schemas.ProofSubmission, db: Session = 
     
     return {
         "success": True,
-        "message": f"Orden {order_id} completada y registrada exitosamente en Supabase.",
+        "message": f"Orden {order_id} completada y registrada en Supabase.",
         "order_id": order_id
     }
