@@ -5,7 +5,6 @@ from datetime import datetime
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
-# Esquema Pydantic para la respuesta de entregas
 class OrderResponse(BaseModel):
     id: str
     tracking_number: str
@@ -20,7 +19,6 @@ class OrderResponse(BaseModel):
     class Config:
         orm_mode = True
 
-# Esquema para recibir la evidencia de entrega (Foto y Firma)
 class ProofSubmission(BaseModel):
     photo_path: str
     signature: str
@@ -41,27 +39,29 @@ fake_orders_db = [
     }
 ]
 
-# 1. Endpoint para obtener entregas activas (Filtra las que ya fueron entregadas)
+# 1. Endpoint para entregas activas (Filtra las entregadas)
 @router.get("/active", response_model=List[OrderResponse])
 def get_active_orders():
-    return [order for order in fake_orders_db if order["status"] != "entregado"]
+    return [o for o in fake_orders_db if o["status"] != "entregado"]
 
-# 2. Endpoint GET general para la lista completa (¡Este faltaba y causaba el 404!)
+# 2. Endpoint general que TAMBIÉN filtra las entregadas (Para que la lista en vivo no muestre pasados)
 @router.get("/", response_model=List[OrderResponse])
 def get_all_orders():
-    return fake_orders_db
+    return [o for o in fake_orders_db if o["status"] != "entregado"]
 
-# 3. Endpoint para completar la entrega con foto y firma
+# 3. Endpoint para completar la entrega con actualización de estatus blindada
 @router.post("/{order_id}/complete")
 def complete_order(order_id: str, proof: ProofSubmission):
     print(f"Recibida evidencia para la orden {order_id} a las {proof.timestamp}")
-    print(f"Ruta de foto: {proof.photo_path}")
     
+    clean_id = order_id.replace('#', '').strip().lower()
     updated = False
-    clean_id = order_id.replace('#', '').strip()
     
     for order in fake_orders_db:
-        if order["id"] == clean_id or clean_id in order["tracking_number"] or order["id"] == order_id:
+        db_id = order["id"].replace('#', '').strip().lower()
+        db_track = order["tracking_number"].replace('#', '').strip().lower()
+        
+        if clean_id == db_id or clean_id == db_track:
             order["status"] = "entregado"
             updated = True
             break
@@ -71,6 +71,6 @@ def complete_order(order_id: str, proof: ProofSubmission):
     
     return {
         "success": True,
-        "message": f"Orden {order_id} completada, estado actualizado y evidencia registrada.",
+        "message": f"Orden {order_id} completada y filtrada correctamente.",
         "order_id": order_id
     }
