@@ -1,7 +1,26 @@
+
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
+
+# Datos necesarios para registrar un pedido
+class OrderCreate(BaseModel):
+    tracking_number: str
+    client_name: str
+    address: str
+    colony: str
+    estimated_time: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
+# Datos para asignar un repartidor
+class OrderAssign(BaseModel):
+    driver_id: str
+
+
+# Respuesta de los pedidos
 class OrderResponse(BaseModel):
     id: str
     tracking_number: str
@@ -12,15 +31,30 @@ class OrderResponse(BaseModel):
     status: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    driver_id: Optional[str] = None
+    photo_path: Optional[str] = None
+    signature: Optional[str] = None
+    proof_timestamp: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
+
+# Evidencia de entrega
 class ProofSubmission(BaseModel):
     photo_path: str
     signature: str
     timestamp: datetime
 
+
+# Datos para registrar un repartidor
+class DriverCreate(BaseModel):
+    name: str
+    vehicle: str
+    average_time: str = "Sin datos"
+
+
+# Respuesta del perfil del repartidor
 class DriverResponse(BaseModel):
     driver_id: str
     name: str
@@ -30,4 +64,4 @@ class DriverResponse(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
