@@ -24,7 +24,7 @@ class ProofSubmission(BaseModel):
     signature: str
     timestamp: datetime
 
-# Base de datos en memoria temporal
+# Base de datos en memoria temporal con múltiples pedidos para un flujo dinámico completo
 fake_orders_db = [
     {
         "id": "ord-001",
@@ -36,6 +36,39 @@ fake_orders_db = [
         "status": "en_transito",
         "latitude": 20.6736,
         "longitude": -103.344
+    },
+    {
+        "id": "ord-002",
+        "tracking_number": "#LT-987654",
+        "client_name": "Carlos Mendoza",
+        "address": "Av. Benito Juárez #405",
+        "colony": "Centro",
+        "estimated_time": "11:45 AM",
+        "status": "en_transito",
+        "latitude": 20.6767,
+        "longitude": -103.347
+    },
+    {
+        "id": "ord-003",
+        "tracking_number": "#LT-112233",
+        "client_name": "Ana Sofía Rivas",
+        "address": "Blvd. Marcelino García #88",
+        "colony": "Lomas del Valle",
+        "estimated_time": "01:15 PM",
+        "status": "en_transito",
+        "latitude": 20.6800,
+        "longitude": -103.350
+    },
+    {
+        "id": "ord-history-1",
+        "tracking_number": "#LT-543200",
+        "client_name": "Carlos Slim",
+        "address": "Av. Insurgentes #100",
+        "colony": "Roma Norte",
+        "estimated_time": "09:00 AM",
+        "status": "entregado",
+        "latitude": 20.6700,
+        "longitude": -103.340
     }
 ]
 
@@ -44,15 +77,21 @@ fake_orders_db = [
 def get_active_orders():
     return [o for o in fake_orders_db if o["status"] != "entregado"]
 
-# 2. Endpoint general que TAMBIÉN filtra las entregadas (Para que la lista en vivo no muestre pasados)
+# 2. Endpoint general que también filtra las entregadas (Para la lista en vivo)
 @router.get("/", response_model=List[OrderResponse])
 def get_all_orders():
     return [o for o in fake_orders_db if o["status"] != "entregado"]
 
-# 3. Endpoint para completar la entrega con actualización de estatus blindada
+# 3. Endpoint exclusivo para el Historial (Devuelve únicamente los ya entregados)
+@router.get("/completed", response_model=List[OrderResponse])
+def get_completed_orders():
+    return [o for o in fake_orders_db if o["status"] == "entregado"]
+
+# 4. Endpoint para completar la entrega con actualización de estatus blindada y manejo de fotos
 @router.post("/{order_id}/complete")
 def complete_order(order_id: str, proof: ProofSubmission):
     print(f"Recibida evidencia para la orden {order_id} a las {proof.timestamp}")
+    print(f"Ruta de foto: {proof.photo_path}")
     
     clean_id = order_id.replace('#', '').strip().lower()
     updated = False
@@ -71,6 +110,6 @@ def complete_order(order_id: str, proof: ProofSubmission):
     
     return {
         "success": True,
-        "message": f"Orden {order_id} completada y filtrada correctamente.",
+        "message": f"Orden {order_id} completada, movida al historial y filtrada correctamente.",
         "order_id": order_id
     }
