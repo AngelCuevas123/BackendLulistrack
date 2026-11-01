@@ -1,58 +1,73 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 
+import database
+import models
+import schemas
+
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
-# Esquema Pydantic para la respuesta de entregas activas
-class OrderResponse(BaseModel):
-    id: str
-    tracking_number: str
-    client_name: str
-    address: str
-    colony: str
-    estimated_time: str
-    status: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+# 1. Endpoint para obtener entregas activas conectado a Supabase (filtrando las ya entregadas)
+@router.get("/active", response_model=List[schemas.OrderResponse])
+def get_active_orders(db: Session = Depends(database.get_db)):
+    try:
+        # Filtramos para que los pedidos con estado "entregado" ya no aparezcan en la app del conductor
+        active_orders = db.query(models.OrderDB).filter(models.OrderDB.status != "entregado").all()
+        return active_orders
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    class Config:
-        orm_mode = True
+# 2. Endpoint opcional para obtener todos los pedidos
+@router.get("/", response_model=List[schemas.OrderResponse])
+def get_orders(db: Session = Depends(database.get_db)):
+    orders = db.query(models.OrderDB).all()
+    return orders
 
-# Esquema para recibir la evidencia de entrega (Foto y Firma)
-class ProofSubmission(BaseModel):
-    photo_path: str
-    signature: str
-    timestamp: datetime
+# 3. Endpoint POST para registrar un nuevo pedido en la base de datos
+@router.post("/", response_model=schemas.OrderResponse, status_code=status.HTTP_201_CREATED)
+def create_order(order_data: schemas.OrderResponse, db: Session = Depends(database.get_db)):
+    existing = db.query(models.OrderDB).filter(models.OrderDB.tracking_number == order_data.tracking_number).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="El número de rastreo ya existe")
 
-# 1. Endpoint para obtener entregas activas
-@router.get("/active", response_model=List[OrderResponse])
-def get_active_orders():
-    # Aquí consultarías tu base de datos con SQLAlchemy
-    # Simularemos datos de prueba compatibles con Flutter:
-    return [
-        {
-            "id": "ord-001",
-            "tracking_number": "#LT-543210",
-            "client_name": "Maria Oliveira",
-            "address": "Calle del Agua #214",
-            "colony": "Cueramayo",
-            "estimated_time": "10:22 AM",
-            "status": "en_transito",
-            "latitude": 20.6736,
-            "longitude": -103.344
-        }
-    ]
+    new_order = models.OrderDB(
+        id=order_data.id,
+        tracking_number=order_data.tracking_number,
+        client_name=order_data.client_name,
+        address=order_data.address,
+        colony=order_data.colony,
+        estimated_time=order_data.estimated_time,
+        status=order_data.status,
+        latitude=order_data.latitude,
+        longitude=order_data.longitude
+    )
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+    return new_order
 
-# 2. Endpoint para completar la entrega con foto y firma
+# 4. Endpoint para completar la entrega con foto y firma (Actualiza a 'entregado' en Supabase)
 @router.post("/{order_id}/complete")
-def complete_order(order_id: str, proof: ProofSubmission):
-    # Aquí guardas la ruta de la foto, la firma y actualizas el estatus a 'entregado' en PostgreSQL
+def complete_order(order_id: str, proof: schemas.ProofSubmission, db: Session = Depends(database.get_db)):
+    # Limpieza estricta del ID por si trae símbolos extra
+    clean_id = order_id.replace('#', '').strip()
+    
+    order = db.query(models.OrderDB).filter(models.OrderDB.id == clean_id).first()
+    if not order:
+        # Intento secundario buscando por coincidencia exacta si el ID original tenía variaciones
+        order = db.query(models.OrderDB).filter(models.OrderDB.id == order_id).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    
+    order.status = "entregado"
+    db.commit()
+    
     print(f"Recibida evidencia para la orden {order_id} a las {proof.timestamp}")
     
     return {
         "success": True,
-        "message": f"Orden {order_id} completada y registrada exitosamente.",
+        "message": f"Orden {order_id} completada y registrada exitosamente en Supabase.",
         "order_id": order_id
     }
