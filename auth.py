@@ -40,39 +40,63 @@ def obtener_usuario_actual(
         )
 
         if respuesta.status_code != 200:
+            # Mostrar el motivo del rechazo sin revelar el token
+            print(
+                "ERROR SUPABASE AUTH:",
+                respuesta.status_code,
+                respuesta.text[:500]
+            )
+
             raise HTTPException(
                 status_code=401,
                 detail="Sesion invalida o expirada"
             )
 
-        return respuesta.json()
+        usuario = respuesta.json()
 
-    except httpx.RequestError:
+        if not usuario.get("id"):
+            print("ERROR SUPABASE AUTH: No se recibio el ID del usuario")
+
+            raise HTTPException(
+                status_code=401,
+                detail="Supabase no devolvio un usuario valido"
+            )
+
+        return usuario
+
+    except httpx.RequestError as error:
+        print("ERROR DE CONEXION CON SUPABASE:", str(error))
+
         raise HTTPException(
             status_code=503,
             detail="No se pudo conectar con Supabase Auth"
         )
 
     except ValueError:
+        print("ERROR SUPABASE AUTH: Respuesta JSON invalida")
+
         raise HTTPException(
             status_code=502,
             detail="Supabase devolvio una respuesta invalida"
         )
 
 
-# Verificar que el usuario sea el administrador autorizado
-def verificar_administrador(usuario: dict = Depends(obtener_usuario_actual)):
+# Verificar que el usuario sea un administrador autorizado
+def verificar_administrador(
+    usuario: dict = Depends(obtener_usuario_actual)
+):
     admin_ids = set()
 
     # Obtener los IDs de administradores permitidos
     ids_configurados = os.getenv("ADMIN_USER_IDS", "")
+
     admin_ids.update(
         identificador.strip()
         for identificador in ids_configurados.split(",")
         if identificador.strip()
     )
 
-    # Mantener compatibilidad con el administrador actual
+    # Mantener compatibilidad con el administrador principal
     admin_id_actual = os.getenv("ADMIN_USER_ID", "").strip()
 
     if admin_id_actual:
@@ -84,10 +108,19 @@ def verificar_administrador(usuario: dict = Depends(obtener_usuario_actual)):
             detail="No hay administradores configurados"
         )
 
-    if usuario.get("id") not in admin_ids:
+    usuario_id = usuario.get("id")
+
+    if usuario_id not in admin_ids:
+        print(
+            "ACCESO ADMINISTRATIVO DENEGADO. UID:",
+            usuario_id
+        )
+
         raise HTTPException(
             status_code=403,
             detail="No tienes permisos de administrador"
         )
+
+    print("ADMINISTRADOR AUTORIZADO:", usuario_id)
 
     return usuario
