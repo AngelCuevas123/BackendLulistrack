@@ -6,9 +6,12 @@ from supabase import create_client
 
 
 # Conexion con Supabase Storage
-SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-BUCKET_NAME = os.getenv("SUPABASE_BUCKET", "evidencias-entrega")
+BUCKET_NAME = os.getenv(
+    "SUPABASE_BUCKET",
+    "evidencias-entrega"
+)
 
 
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -18,7 +21,10 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 
 # Crear cliente de Supabase
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
 
 
 # Subir una evidencia al almacenamiento
@@ -37,7 +43,7 @@ def subir_evidencia(
         file=contenido,
         file_options={
             "content-type": tipo_contenido,
-            "upsert": "true"
+            "upsert": "false"
         }
     )
 
@@ -46,10 +52,19 @@ def subir_evidencia(
 
 # Generar enlace temporal para consultar una evidencia
 def obtener_url_temporal(ruta: str):
-    resultado = supabase.storage.from_(BUCKET_NAME).create_signed_url(
+    resultado = supabase.storage.from_(
+        BUCKET_NAME
+    ).create_signed_url(
         path=ruta,
         expires_in=3600
     )
 
-    return resultado["signedURL"]
+    url = resultado.get("signedURL") or resultado.get("signedUrl")
+
+    if not url:
+        raise RuntimeError(
+            "Supabase no pudo generar el enlace temporal"
+        )
+
+    return url
 

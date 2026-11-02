@@ -8,6 +8,10 @@ class DriverDB(Base):
     __tablename__ = "drivers"
 
     driver_id = Column(String, primary_key=True, index=True)
+
+    # Relacion con el usuario de Supabase
+    auth_user_id = Column(String(36), unique=True, nullable=True, index=True)
+
     name = Column(String, nullable=False)
     vehicle = Column(String, nullable=False)
     completed_deliveries = Column(Integer, default=0)

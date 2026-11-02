@@ -14,6 +14,7 @@ from routers import orders, drivers
 Base.metadata.create_all(bind=engine)
 
 
+# Configuracion principal de FastAPI
 app = FastAPI(
     title="Lulistrack API",
     description="Backend oficial para la gestion de entregas y rutas de Lulistrack",
@@ -21,7 +22,7 @@ app = FastAPI(
 )
 
 
-# Configuracion CORS para permitir la conexion con React y Vercel
+# Configuracion CORS para React y Vercel
 origins = os.getenv(
     "CORS_ORIGINS",
     "https://lulistrack-dashboard.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
@@ -46,5 +47,14 @@ app.include_router(drivers.router)
 def root():
     return {
         "message": "Servidor de Lulistrack corriendo al 100%"
+    }
+
+
+# Comprobar el estado del servidor
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "message": "Lulistrack API funcionando correctamente"
     }
 

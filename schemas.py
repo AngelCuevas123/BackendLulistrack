@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
@@ -49,14 +49,16 @@ class ProofSubmission(BaseModel):
 
 # Datos para registrar un repartidor
 class DriverCreate(BaseModel):
-    name: str
-    vehicle: str
-    average_time: str = "Sin datos"
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=72)
+    vehicle: str = Field(min_length=2, max_length=50)
 
 
 # Respuesta del perfil del repartidor
 class DriverResponse(BaseModel):
     driver_id: str
+    auth_user_id: Optional[str] = None
     name: str
     vehicle: str
     completed_deliveries: int

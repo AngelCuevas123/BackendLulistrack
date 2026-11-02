@@ -1,12 +1,14 @@
 
+import os
+import base64
+import binascii
+
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
 from typing import List
 from uuid import uuid4
-import base64
-import binascii
 
 from storage import subir_evidencia, obtener_url_temporal
 from database import get_db
@@ -17,6 +19,8 @@ from schemas import (
     OrderAssign,
     ProofSubmission
 )
+from auth import obtener_usuario_actual, verificar_administrador
+
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -29,40 +33,78 @@ def find_order(db: Session, order_id: str):
         or_(
             func.lower(OrderDB.id) == clean_id,
             func.lower(func.replace(OrderDB.id, "#", "")) == clean_id,
-            func.lower(func.replace(OrderDB.tracking_number, "#", "")) == clean_id
+            func.lower(
+                func.replace(OrderDB.tracking_number, "#", "")
+            ) == clean_id
         )
     ).first()
 
 
-# 1. Consultar pedidos activos
+# Obtener el perfil del repartidor autenticado
+def obtener_repartidor(usuario: dict, db: Session):
+    driver = db.query(DriverDB).filter(
+        DriverDB.auth_user_id == usuario["id"]
+    ).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=403,
+            detail="Esta cuenta no tiene un perfil de repartidor autorizado"
+        )
+
+    return driver
+
+
+# 1. Consultar pedidos activos (solo administrador)
 @router.get("/active", response_model=List[OrderResponse])
-def get_active_orders(db: Session = Depends(get_db)):
+def get_active_orders(
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(verificar_administrador)
+):
     return db.query(OrderDB).filter(
         OrderDB.status != "entregado"
     ).all()
 
 
-# 2. Consultar todos los pedidos activos
+# 2. Consultar todos los pedidos (solo administrador)
 @router.get("/", response_model=List[OrderResponse])
-def get_all_orders(db: Session = Depends(get_db)):
-    return db.query(OrderDB).filter(
-        OrderDB.status != "entregado"
-    ).all()
+def get_all_orders(
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(verificar_administrador)
+):
+    return db.query(OrderDB).all()
 
 
-# 3. Consultar historial de entregas
+# 3. Consultar historial de entregas (solo administrador)
 @router.get("/completed", response_model=List[OrderResponse])
-def get_completed_orders(db: Session = Depends(get_db)):
+def get_completed_orders(
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(verificar_administrador)
+):
     return db.query(OrderDB).filter(
         OrderDB.status == "entregado"
     ).all()
 
 
-# 4. Registrar un nuevo pedido
+# 4. Consultar pedidos del repartidor autenticado
+@router.get("/my", response_model=List[OrderResponse])
+def get_my_orders(
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    driver = obtener_repartidor(usuario, db)
+
+    return db.query(OrderDB).filter(
+        OrderDB.driver_id == driver.driver_id
+    ).all()
+
+
+# 5. Registrar un nuevo pedido (solo administrador)
 @router.post("/", response_model=OrderResponse, status_code=201)
 def create_order(
     order: OrderCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(verificar_administrador)
 ):
     new_order = OrderDB(
         id=f"ord-{uuid4().hex[:10]}",
@@ -81,6 +123,7 @@ def create_order(
     try:
         db.commit()
         db.refresh(new_order)
+
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -91,27 +134,37 @@ def create_order(
     return new_order
 
 
-# 5. Asignar un pedido a un repartidor
+# 6. Asignar un pedido a un repartidor (solo administrador)
 @router.patch("/{order_id}/assign", response_model=OrderResponse)
 def assign_order(
     order_id: str,
     assignment: OrderAssign,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(verificar_administrador)
 ):
     order = find_order(db, order_id)
 
     if not order:
-        raise HTTPException(404, "Pedido no encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail="Pedido no encontrado"
+        )
 
     if order.status == "entregado":
-        raise HTTPException(400, "El pedido ya fue entregado")
+        raise HTTPException(
+            status_code=400,
+            detail="El pedido ya fue entregado"
+        )
 
     driver = db.query(DriverDB).filter(
         DriverDB.driver_id == assignment.driver_id
     ).first()
 
     if not driver:
-        raise HTTPException(404, "Repartidor no encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail="Repartidor no encontrado"
+        )
 
     order.driver_id = driver.driver_id
     order.status = "en_transito"
@@ -122,19 +175,31 @@ def assign_order(
     return order
 
 
-# 6. Completar pedido y registrar evidencia
+# 7. Completar pedido y registrar evidencia
+# Solamente el repartidor asignado puede completar el pedido
 @router.post("/{order_id}/complete")
 def complete_order(
     order_id: str,
     proof: ProofSubmission,
+    usuario: dict = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db)
 ):
+    driver = obtener_repartidor(usuario, db)
+
     order = find_order(db, order_id)
 
     if not order:
-        raise HTTPException(404, "Pedido no encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail="Pedido no encontrado"
+        )
 
-    # Evitar contar dos veces una entrega
+    if order.driver_id != driver.driver_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Este pedido no esta asignado a tu cuenta"
+        )
+
     if order.status == "entregado":
         raise HTTPException(
             status_code=400,
@@ -148,6 +213,7 @@ def complete_order(
 
         try:
             contenido = base64.b64decode(valor, validate=True)
+
         except (binascii.Error, ValueError):
             raise HTTPException(
                 status_code=400,
@@ -155,7 +221,10 @@ def complete_order(
             )
 
         if not contenido:
-            raise HTTPException(400, "La imagen esta vacia")
+            raise HTTPException(
+                status_code=400,
+                detail="La imagen esta vacia"
+            )
 
         if len(contenido) > 5 * 1024 * 1024:
             raise HTTPException(
@@ -194,15 +263,9 @@ def complete_order(
         order.status = "entregado"
 
         # Actualizar entregas del repartidor
-        if order.driver_id:
-            driver = db.query(DriverDB).filter(
-                DriverDB.driver_id == order.driver_id
-            ).first()
-
-            if driver:
-                driver.completed_deliveries = (
-                    driver.completed_deliveries or 0
-                ) + 1
+        driver.completed_deliveries = (
+            driver.completed_deliveries or 0
+        ) + 1
 
         db.commit()
         db.refresh(order)
@@ -230,10 +293,12 @@ def complete_order(
         )
 
 
-# 7. Consultar evidencias de una entrega
+# 8. Consultar evidencias de una entrega
+# Administrador o repartidor asignado
 @router.get("/{order_id}/evidence")
 def get_order_evidence(
     order_id: str,
+    usuario: dict = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db)
 ):
     order = find_order(db, order_id)
@@ -243,6 +308,17 @@ def get_order_evidence(
             status_code=404,
             detail="Pedido no encontrado"
         )
+
+    admin_id = os.getenv("ADMIN_USER_ID")
+
+    if usuario.get("id") != admin_id:
+        driver = obtener_repartidor(usuario, db)
+
+        if order.driver_id != driver.driver_id:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permiso para consultar estas evidencias"
+            )
 
     if order.status != "entregado":
         raise HTTPException(
@@ -277,4 +353,3 @@ def get_order_evidence(
             status_code=500,
             detail="No se pudieron consultar las evidencias"
         )
-
