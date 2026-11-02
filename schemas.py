@@ -42,8 +42,8 @@ class OrderResponse(BaseModel):
 
 # Evidencia de entrega
 class ProofSubmission(BaseModel):
-    photo_path: str
-    signature: str
+    photo_base64: str
+    signature_base64: str
     timestamp: datetime
 
 
