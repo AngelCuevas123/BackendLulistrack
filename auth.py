@@ -61,22 +61,33 @@ def obtener_usuario_actual(
 
 
 # Verificar que el usuario sea el administrador autorizado
-def verificar_administrador(
-    usuario: dict = Depends(obtener_usuario_actual)
-):
-    admin_id = os.getenv("ADMIN_USER_ID")
+def verificar_administrador(usuario: dict = Depends(obtener_usuario_actual)):
+    admin_ids = set()
 
-    if not admin_id:
+    # Obtener los IDs de administradores permitidos
+    ids_configurados = os.getenv("ADMIN_USER_IDS", "")
+    admin_ids.update(
+        identificador.strip()
+        for identificador in ids_configurados.split(",")
+        if identificador.strip()
+    )
+
+    # Mantener compatibilidad con el administrador actual
+    admin_id_actual = os.getenv("ADMIN_USER_ID", "").strip()
+
+    if admin_id_actual:
+        admin_ids.add(admin_id_actual)
+
+    if not admin_ids:
         raise HTTPException(
             status_code=500,
-            detail="Falta configurar ADMIN_USER_ID"
+            detail="No hay administradores configurados"
         )
 
-    if usuario.get("id") != admin_id.strip():
+    if usuario.get("id") not in admin_ids:
         raise HTTPException(
             status_code=403,
             detail="No tienes permisos de administrador"
         )
 
     return usuario
-
