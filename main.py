@@ -21,10 +21,10 @@ app = FastAPI(
 )
 
 
-# Configuracion para permitir la conexion con React
+# Configuracion CORS para permitir la conexion con React y Vercel
 origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173"
+    "https://lulistrack-dashboard.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
 
 app.add_middleware(
