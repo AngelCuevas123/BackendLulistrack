@@ -134,8 +134,12 @@ def complete_order(
     if not order:
         raise HTTPException(404, "Pedido no encontrado")
 
+    # Evitar contar dos veces una entrega
     if order.status == "entregado":
-        raise HTTPException(400, "Este pedido ya fue entregado")
+        raise HTTPException(
+            status_code=400,
+            detail="Este pedido ya fue entregado"
+        )
 
     # Convertir imagenes Base64 a bytes
     def decodificar_imagen(valor: str):
