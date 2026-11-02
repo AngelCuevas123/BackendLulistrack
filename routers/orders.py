@@ -8,7 +8,7 @@ from uuid import uuid4
 import base64
 import binascii
 
-from storage import subir_evidencia
+from storage import subir_evidencia, obtener_url_temporal
 from database import get_db
 from models import OrderDB, DriverDB
 from schemas import (
@@ -227,5 +227,54 @@ def complete_order(
         raise HTTPException(
             status_code=500,
             detail="No se pudo guardar la evidencia de entrega"
+        )
+
+
+# 7. Consultar evidencias de una entrega
+@router.get("/{order_id}/evidence")
+def get_order_evidence(
+    order_id: str,
+    db: Session = Depends(get_db)
+):
+    order = find_order(db, order_id)
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="Pedido no encontrado"
+        )
+
+    if order.status != "entregado":
+        raise HTTPException(
+            status_code=400,
+            detail="El pedido todavia no ha sido entregado"
+        )
+
+    if not order.photo_path or not order.signature:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontraron evidencias de entrega"
+        )
+
+    try:
+        # Generar enlaces temporales de Supabase
+        foto_url = obtener_url_temporal(order.photo_path)
+        firma_url = obtener_url_temporal(order.signature)
+
+        return {
+            "order_id": order.id,
+            "tracking_number": order.tracking_number,
+            "client_name": order.client_name,
+            "photo_url": foto_url,
+            "signature_url": firma_url,
+            "proof_timestamp": order.proof_timestamp
+        }
+
+    except Exception as e:
+        print(f"Error al consultar evidencias: {repr(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudieron consultar las evidencias"
         )
 
