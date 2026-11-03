@@ -5,7 +5,6 @@ import binascii
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
 from typing import List
 from uuid import uuid4
@@ -86,7 +85,7 @@ def get_completed_orders(
     ).all()
 
 
-# 4. Consultar pedidos del repartidor autenticado
+# 4. Consultar pedidos activos del repartidor autenticado
 @router.get("/my", response_model=List[OrderResponse])
 def get_my_orders(
     usuario: dict = Depends(obtener_usuario_actual),
@@ -95,11 +94,26 @@ def get_my_orders(
     driver = obtener_repartidor(usuario, db)
 
     return db.query(OrderDB).filter(
-        OrderDB.driver_id == driver.driver_id
+        OrderDB.driver_id == driver.driver_id,
+        OrderDB.status != "entregado"
     ).all()
 
 
-# 5. Registrar un nuevo pedido (solo administrador)
+# 5. Consultar pedidos disponibles para los repartidores
+@router.get("/available", response_model=List[OrderResponse])
+def get_available_orders(
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    obtener_repartidor(usuario, db)
+
+    return db.query(OrderDB).filter(
+        OrderDB.driver_id.is_(None),
+        OrderDB.status == "pendiente"
+    ).all()
+
+
+# 6. Registrar un nuevo pedido (solo administrador)
 @router.post("/", response_model=OrderResponse, status_code=201)
 def create_order(
     order: OrderCreate,
@@ -124,17 +138,14 @@ def create_order(
         db.commit()
         db.refresh(new_order)
 
-    except IntegrityError:
+    except Exception:
         db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="El numero de seguimiento ya existe"
-        )
+        raise
 
     return new_order
 
 
-# 6. Asignar un pedido a un repartidor (solo administrador)
+# 7. Asignar un pedido a un repartidor (solo administrador)
 @router.patch("/{order_id}/assign", response_model=OrderResponse)
 def assign_order(
     order_id: str,
@@ -175,7 +186,51 @@ def assign_order(
     return order
 
 
-# 7. Completar pedido y registrar evidencia
+# 8. Tomar un pedido disponible como repartidor
+@router.post("/{order_id}/claim", response_model=OrderResponse)
+def claim_order(
+    order_id: str,
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    driver = obtener_repartidor(usuario, db)
+
+    order = find_order(db, order_id)
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="Pedido no encontrado"
+        )
+
+    # Actualizacion atomica para evitar que dos repartidores
+    # puedan tomar el mismo pedido.
+    updated = db.query(OrderDB).filter(
+        OrderDB.id == order.id,
+        OrderDB.driver_id.is_(None),
+        OrderDB.status == "pendiente"
+    ).update(
+        {
+            OrderDB.driver_id: driver.driver_id,
+            OrderDB.status: "en_transito"
+        },
+        synchronize_session=False
+    )
+
+    if updated == 0:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Este pedido ya fue tomado por otro repartidor"
+        )
+
+    db.commit()
+    db.refresh(order)
+
+    return order
+
+
+# 9. Completar pedido y registrar evidencia
 # Solamente el repartidor asignado puede completar el pedido
 @router.post("/{order_id}/complete")
 def complete_order(
@@ -293,7 +348,7 @@ def complete_order(
         )
 
 
-# 8. Consultar evidencias de una entrega
+# 10. Consultar evidencias de una entrega
 # Administrador o repartidor asignado
 @router.get("/{order_id}/evidence")
 def get_order_evidence(
