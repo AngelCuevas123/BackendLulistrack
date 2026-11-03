@@ -68,7 +68,7 @@ Requisitos: Python 3.11 o superior, PostgreSQL y un proyecto de Supabase con Aut
    ```bash
    pip install -r requirements.txt
    ```
-4. Crea un archivo .env en la raiz usando .env.example como referencia y completa tus propios valores.
+4. Define las variables de configuracion requeridas para tu entorno local tomando `.env.example` como referencia.
 5. Inicia el servidor:
    ```bash
    uvicorn main:app --reload
@@ -99,7 +99,7 @@ SUPABASE_BUCKET=evidencias-entrega
 CORS_ORIGINS=https://lulistrack-dashboard.vercel.app,http://localhost:5173
 ```
 
-**Seguridad:** nunca publiques el archivo .env, la clave SUPABASE_SERVICE_ROLE_KEY, contrasenas de PostgreSQL ni tokens privados. Configura estos valores como variables de entorno en Render. La clave service role debe permanecer exclusivamente en el backend.
+En Render, registra estos valores en la configuracion del servicio. `SUPABASE_SERVICE_ROLE_KEY` se utiliza unicamente en el backend para operaciones administrativas.
 
 ## Endpoints principales
 
