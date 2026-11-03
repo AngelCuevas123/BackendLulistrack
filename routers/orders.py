@@ -99,7 +99,21 @@ def get_my_orders(
     ).all()
 
 
-# 5. Consultar pedidos disponibles para los repartidores
+# 5. Consultar historial de entregas del repartidor autenticado
+@router.get("/my/completed", response_model=List[OrderResponse])
+def get_my_completed_orders(
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    driver = obtener_repartidor(usuario, db)
+
+    return db.query(OrderDB).filter(
+        OrderDB.driver_id == driver.driver_id,
+        OrderDB.status == "entregado"
+    ).all()
+
+
+# 6. Consultar pedidos disponibles para los repartidores
 @router.get("/available", response_model=List[OrderResponse])
 def get_available_orders(
     usuario: dict = Depends(obtener_usuario_actual),
@@ -113,7 +127,7 @@ def get_available_orders(
     ).all()
 
 
-# 6. Registrar un nuevo pedido (solo administrador)
+# 7. Registrar un nuevo pedido (solo administrador)
 @router.post("/", response_model=OrderResponse, status_code=201)
 def create_order(
     order: OrderCreate,
@@ -145,7 +159,7 @@ def create_order(
     return new_order
 
 
-# 7. Asignar un pedido a un repartidor (solo administrador)
+# 8. Asignar un pedido a un repartidor (solo administrador)
 @router.patch("/{order_id}/assign", response_model=OrderResponse)
 def assign_order(
     order_id: str,
@@ -186,7 +200,7 @@ def assign_order(
     return order
 
 
-# 8. Tomar un pedido disponible como repartidor
+# 9. Tomar un pedido disponible como repartidor
 @router.post("/{order_id}/claim", response_model=OrderResponse)
 def claim_order(
     order_id: str,
@@ -230,7 +244,7 @@ def claim_order(
     return order
 
 
-# 9. Completar pedido y registrar evidencia
+# 10. Completar pedido y registrar evidencia
 # Solamente el repartidor asignado puede completar el pedido
 @router.post("/{order_id}/complete")
 def complete_order(
@@ -348,7 +362,7 @@ def complete_order(
         )
 
 
-# 10. Consultar evidencias de una entrega
+# 11. Consultar evidencias de una entrega
 # Administrador o repartidor asignado
 @router.get("/{order_id}/evidence")
 def get_order_evidence(
