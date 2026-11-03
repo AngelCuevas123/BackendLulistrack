@@ -378,9 +378,27 @@ def get_order_evidence(
             detail="Pedido no encontrado"
         )
 
-    admin_id = os.getenv("ADMIN_USER_ID")
+    # Obtener todos los IDs de administradores configurados
+    admin_ids = set()
 
-    if usuario.get("id") != admin_id:
+    ids_configurados = os.getenv("ADMIN_USER_IDS", "")
+
+    admin_ids.update(
+        identificador.strip()
+        for identificador in ids_configurados.split(",")
+        if identificador.strip()
+    )
+
+    admin_id_actual = os.getenv("ADMIN_USER_ID", "").strip()
+
+    if admin_id_actual:
+        admin_ids.add(admin_id_actual)
+
+    # Comprobar si el usuario autenticado es administrador
+    es_admin = usuario.get("id") in admin_ids
+
+    # Si no es administrador, comprobar que sea el repartidor asignado
+    if not es_admin:
         driver = obtener_repartidor(usuario, db)
 
         if order.driver_id != driver.driver_id:
