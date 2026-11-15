@@ -41,11 +41,25 @@ class OrderResponse(BaseModel):
 
 
 # Informacion publica para consultar el seguimiento de un pedido
+class DriverLocationUpdate(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy: Optional[float] = Field(default=None, ge=0, le=10000)
+
+
+class DriverLocationResponse(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    updated_at: datetime
+
+
 class OrderTrackingResponse(BaseModel):
     tracking_number: str
     status: str
     estimated_time: str
     proof_timestamp: Optional[datetime] = None
+    current_location: Optional[DriverLocationResponse] = None
 
 
 # Evidencia de entrega
