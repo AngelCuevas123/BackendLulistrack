@@ -1,165 +1,215 @@
-# Lulistrack Backend
+# Lulistrack Backend — 3.0
 
-API REST de **Lulistrack**, plataforma para la gestion y seguimiento de entregas de ultima milla. Este servicio conecta el dashboard web y la aplicacion movil con PostgreSQL, Supabase Auth y Supabase Storage.
+API REST de **Lulistrack**, plataforma de gestión y seguimiento de entregas de última milla. El backend concentra la lógica de negocio y conecta el dashboard administrativo y la aplicación móvil con Supabase, PostgreSQL, almacenamiento de evidencias y Firebase.
 
-## Aplicacion en linea
+## Servicios en línea
+
 - **API:** https://backendlulistrack.onrender.com
-- **Documentacion interactiva:** https://backendlulistrack.onrender.com/docs
+- **Documentación interactiva:** https://backendlulistrack.onrender.com/docs
 - **Estado del servicio:** https://backendlulistrack.onrender.com/health
-- **Dashboard web:** https://lulistrack-dashboard.vercel.app
+- **Dashboard:** https://lulistrack-dashboard.vercel.app
 
-## Tecnologias
-- Python, FastAPI y Uvicorn
-- SQLAlchemy y PostgreSQL mediante Psycopg 3
-- Supabase Auth para autenticacion
-- Supabase Storage para evidencias de entrega
-- HTTPX para solicitudes a Supabase
-- Render para el despliegue de la API
+## Ecosistema
+
+| Componente | Tecnología | Repositorio |
+| --- | --- | --- |
+| Aplicación móvil | Flutter y Dart | [LulistrackApp](https://github.com/AngelCuevas123/LulistrackApp/tree/lulistrack-3.0) |
+| Backend y API | FastAPI y Python | Este repositorio |
+| Panel administrativo | React y Vite | [LulistrackDashboard](https://github.com/AngelCuevas123/LulistrackDashboard/tree/lulistrack-3.0) |
+| Base de datos y autenticación | Supabase Auth y PostgreSQL | Proyecto Supabase |
+| Evidencias | Supabase Storage | Proyecto Supabase |
+| Notificaciones | Firebase Admin SDK e Installation ID | Proyecto Firebase |
 
 ## Funcionalidades
-- Autenticacion mediante tokens de Supabase y validacion de permisos administrativos.
-- Registro, consulta y asignacion de pedidos.
-- Consulta de pedidos activos, disponibles e historial de entregas.
-- Registro de repartidores y creacion de sus cuentas de acceso.
-- Toma de pedidos por repartidores autorizados.
-- Registro de entregas con fotografia, firma y fecha.
-- Almacenamiento de evidencias y generacion de enlaces temporales.
+
+### Pedidos y repartidores
+- Autenticación mediante tokens de Supabase.
+- Validación de permisos administrativos y de repartidor.
+- Registro y consulta de pedidos.
+- Consulta de pedidos activos, disponibles e historial.
+- Asignación de pedidos a repartidores.
+- Aceptación de pedidos disponibles desde la app móvil.
+- Registro de repartidores y creación de sus cuentas de acceso.
+- Registro de entregas con fotografía, firma y fecha.
+- Consulta de evidencias mediante enlaces temporales.
+
+### Notificaciones push
+- Registro y desactivación de dispositivos asociados a repartidores.
+- Almacenamiento del Firebase Installation ID (FID) en PostgreSQL.
+- Envío de notificaciones a los dispositivos activos de un repartidor mediante Firebase Admin SDK.
+- Envío por lotes de hasta 500 identificadores por solicitud.
+- Desactivación de identificadores que Firebase confirma como no registrados.
+- Manejo de errores de notificación sin interrumpir la operación principal de asignación.
+
+La app móvil registra el FID después de iniciar sesión y solicita al backend desactivarlo al cerrar sesión.
+
+### Evidencias y almacenamiento
+- Recepción de fotografía y firma codificadas en Base64.
+- Almacenamiento de archivos en Supabase Storage.
+- Persistencia de las referencias de evidencia en PostgreSQL.
+- Generación de enlaces firmados temporales para consultar las evidencias.
+
+## Tecnologías
+
+- Python
+- FastAPI y Uvicorn
+- SQLAlchemy
+- PostgreSQL y Psycopg 3
+- Supabase Auth y Supabase Storage
+- HTTPX
+- Firebase Admin SDK
+- Render para el despliegue de la API
 
 ## Estructura del proyecto
-```text
+
+~~~text
 BackendLulistrack/
 ├── routers/
-│   ├── drivers.py       # Endpoints de repartidores
-│   └── orders.py        # Endpoints de pedidos y evidencias
-├── auth.py              # Validacion de sesion y permisos
-├── database.py          # Conexion a PostgreSQL
-├── main.py              # Configuracion de FastAPI y CORS
-├── models.py            # Modelos de SQLAlchemy
-├── schemas.py           # Esquemas Pydantic
-├── storage.py           # Operaciones con Supabase Storage
+│   ├── drivers.py
+│   └── orders.py
+├── services/
+│   └── notification_service.py
+├── auth.py
+├── database.py
+├── firebase_config.py
+├── main.py
+├── models.py
+├── schemas.py
+├── storage.py
 ├── requirements.txt
-├── .env.example
-└── .gitignore
-```
-
-## Instalacion local
-
-Requisitos: Python 3.11 o superior, PostgreSQL y un proyecto de Supabase con Auth y Storage habilitados.
-
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/AngelCuevas123/BackendLulistrack.git
-   cd BackendLulistrack
-   ```
-2. Crea y activa un entorno virtual.
-
-   **Windows PowerShell:**
-   ```powershell
-   python -m venv venv
-   .\venv\Scripts\Activate.ps1
-   ```
-
-   **macOS / Linux:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   ```
-3. Instala dependencias:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Define las variables de configuracion requeridas para tu entorno local tomando `.env.example` como referencia.
-5. Inicia el servidor:
-   ```bash
-   uvicorn main:app --reload
-   ```
-
-La API estara disponible en http://127.0.0.1:8000. La documentacion interactiva estara en /docs.
-
-## Variables de entorno
-
-| Variable | Obligatoria | Descripcion |
-| --- | --- | --- |
-| DATABASE_URL | Si | Cadena de conexion a PostgreSQL. |
-| SUPABASE_URL | Si | URL del proyecto Supabase. |
-| SUPABASE_SERVICE_ROLE_KEY | Si | Clave privada para operaciones administrativas y Storage. |
-| ADMIN_USER_ID | Una de las dos | UUID de un administrador de Supabase Auth. |
-| ADMIN_USER_IDS | Una de las dos | UUID de varios administradores separados por comas. |
-| SUPABASE_BUCKET | No | Bucket de Storage; por defecto evidencias-entrega. |
-| CORS_ORIGINS | No | Origenes permitidos separados por comas. |
-
-Ejemplo de formato (utiliza tus propios valores):
-```env
-DATABASE_URL=postgresql://usuario:contrasena@host:5432/base_de_datos
-SUPABASE_URL=https://tu-proyecto.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=tu_clave_privada_de_servidor
-ADMIN_USER_ID=uuid-del-administrador
-# ADMIN_USER_IDS=uuid-admin-1,uuid-admin-2
-SUPABASE_BUCKET=evidencias-entrega
-CORS_ORIGINS=https://lulistrack-dashboard.vercel.app,http://localhost:5173
-```
-
-En Render, registra estos valores en la configuracion del servicio. `SUPABASE_SERVICE_ROLE_KEY` se utiliza unicamente en el backend para operaciones administrativas.
+└── .env.example
+~~~
 
 ## Endpoints principales
 
-Todas las rutas protegidas requieren el encabezado Authorization: Bearer con un token valido de Supabase.
+Las rutas protegidas requieren el encabezado Authorization: Bearer con un token válido de Supabase.
 
 ### Pedidos — /orders
 
-| Metodo | Ruta | Acceso | Descripcion |
+| Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | GET | /orders/ | Administrador | Consulta todos los pedidos. |
-| GET | /orders/active | Administrador | Consulta pedidos no entregados. |
+| GET | /orders/active | Administrador | Consulta pedidos activos. |
 | GET | /orders/completed | Administrador | Consulta entregas completadas. |
 | POST | /orders/ | Administrador | Registra un pedido. |
-| PATCH | /orders/{order_id}/assign | Administrador | Asigna un pedido a un repartidor. |
+| PATCH | /orders/{order_id}/assign | Administrador | Asigna un pedido a un repartidor y dispara la notificación push. |
 | GET | /orders/my | Repartidor | Consulta sus pedidos activos. |
 | GET | /orders/my/completed | Repartidor | Consulta su historial. |
-| GET | /orders/available | Repartidor | Consulta pedidos pendientes sin asignar. |
-| POST | /orders/{order_id}/claim | Repartidor | Toma un pedido disponible. |
+| GET | /orders/available | Repartidor | Consulta pedidos disponibles. |
+| POST | /orders/{order_id}/claim | Repartidor | Acepta un pedido disponible. |
 | POST | /orders/{order_id}/complete | Repartidor asignado | Registra la entrega y sus evidencias. |
 | GET | /orders/{order_id}/evidence | Administrador o repartidor asignado | Consulta enlaces temporales de evidencias. |
 
 ### Repartidores — /drivers
 
-| Metodo | Ruta | Acceso | Descripcion |
+| Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
 | GET | /drivers/ | Administrador | Consulta todos los repartidores. |
-| POST | /drivers/ | Administrador | Crea la cuenta y perfil de un repartidor. |
+| POST | /drivers/ | Administrador | Crea cuenta y perfil de repartidor. |
 | GET | /drivers/me | Repartidor | Consulta su propio perfil. |
 | GET | /drivers/{driver_id} | Administrador | Consulta un repartidor por ID. |
+| POST | /drivers/me/fcm-token | Repartidor autenticado | Registra o reactiva el FID del dispositivo. |
+| DELETE | /drivers/me/fcm-token | Repartidor autenticado | Desactiva el FID al cerrar sesión. |
+
+Los endpoints conservan el nombre histórico fcm-token por compatibilidad; el valor que reciben y almacenan es el **Firebase Installation ID**, no un token FCM tradicional.
 
 ### Sistema
 
-| Metodo | Ruta | Descripcion |
+| Método | Ruta | Descripción |
 | --- | --- | --- |
 | GET | / | Mensaje de bienvenida. |
-| GET | /health | Comprobacion basica del servicio. |
-| GET | /docs | Documentacion interactiva Swagger UI. |
+| GET | /health | Comprobación básica del servicio. |
+| GET | /docs | Documentación interactiva Swagger UI. |
 
-## Autenticacion y permisos
+## Configuración local
 
-Supabase Auth autentica a los usuarios. El backend valida el token recibido consultando el servicio de usuarios de Supabase. Las operaciones administrativas comparan el UUID autenticado con ADMIN_USER_ID y/o ADMIN_USER_IDS. Las operaciones de repartidor comprueban que exista un perfil vinculado al UUID de Supabase.
+Requisitos: Python 3.11 o superior, PostgreSQL y proyectos de Supabase y Firebase configurados.
 
-## Evidencias de entrega
+1. Clona la rama 3.0:
 
-Al completar un pedido, el repartidor asignado envia fotografia y firma en Base64 junto con la fecha de entrega. El backend guarda los archivos en el bucket configurado y almacena sus rutas en PostgreSQL. Al consultar las evidencias, genera enlaces firmados con vigencia de una hora.
+   ~~~bash
+   git clone --branch lulistrack-3.0 https://github.com/AngelCuevas123/BackendLulistrack.git
+   cd BackendLulistrack
+   ~~~
+
+2. Crea y activa un entorno virtual:
+
+   **Windows PowerShell**
+   ~~~powershell
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   ~~~
+
+   **macOS / Linux**
+   ~~~bash
+   python -m venv venv
+   source venv/bin/activate
+   ~~~
+
+3. Instala dependencias:
+
+   ~~~bash
+   pip install -r requirements.txt
+   ~~~
+
+4. Copia .env.example a .env y configura los valores de tu entorno.
+
+5. Configura una cuenta de servicio de Firebase Admin SDK fuera del repositorio y define FIREBASE_CREDENTIALS_PATH con la ruta local del archivo JSON.
+
+6. Inicia la API:
+
+   ~~~bash
+   uvicorn main:app --reload
+   ~~~
+
+La API local estará disponible en http://127.0.0.1:8000 y Swagger UI en /docs.
+
+## Variables de entorno
+
+| Variable | Requerida | Descripción |
+| --- | --- | --- |
+| DATABASE_URL | Sí | Cadena de conexión a PostgreSQL. |
+| SUPABASE_URL | Sí | URL del proyecto Supabase. |
+| SUPABASE_SERVICE_ROLE_KEY | Sí | Clave privada usada únicamente por el backend. |
+| ADMIN_USER_ID o ADMIN_USER_IDS | Sí | UUID de uno o varios administradores autorizados. |
+| FIREBASE_CREDENTIALS_PATH | Sí | Ruta al JSON de la cuenta de servicio de Firebase Admin SDK. |
+| SUPABASE_BUCKET | No | Bucket de evidencias; por defecto evidencias-entrega. |
+| CORS_ORIGINS | No | Orígenes permitidos separados por comas. |
+
+Ejemplo de formato (usa tus propios valores):
+
+~~~env
+DATABASE_URL=postgresql://usuario:contrasena@host:5432/base_de_datos
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=tu_clave_privada_de_servidor
+ADMIN_USER_ID=uuid-del-administrador
+# ADMIN_USER_IDS=uuid-admin-1,uuid-admin-2
+FIREBASE_CREDENTIALS_PATH=/ruta/segura/firebase-service-account.json
+SUPABASE_BUCKET=evidencias-entrega
+CORS_ORIGINS=https://lulistrack-dashboard.vercel.app,http://localhost:5173
+~~~
+
+No subas el archivo de cuenta de servicio, claves privadas, contraseñas ni archivos .env al repositorio. En Render, configura la cuenta de servicio como archivo secreto y define FIREBASE_CREDENTIALS_PATH con la ruta proporcionada por el entorno.
 
 ## Base de datos
 
-Los modelos de SQLAlchemy representan las tablas orders y drivers. Al iniciar la aplicacion, Base.metadata.create_all crea las tablas que aun no existan. Para cambios de estructura en una base de datos existente, revisa el esquema antes de desplegar: create_all no sustituye un sistema de migraciones.
+SQLAlchemy representa las entidades de pedidos, repartidores y dispositivos. La tabla de dispositivos conserva el FID, la plataforma, el repartidor asociado y el estado activo. Al iniciar, Base.metadata.create_all crea las tablas que no existen; no sustituye un sistema de migraciones para modificar tablas ya creadas.
 
 ## Despliegue en Render
 
-Configura las variables de entorno anteriores en Render. Un comando de inicio compatible con el servicio es:
+Configura las variables de entorno y el archivo secreto de Firebase en el servicio de Render. Un comando de inicio compatible es:
 
-```bash
+~~~bash
 uvicorn main:app --host 0.0.0.0 --port $PORT
-```
+~~~
 
-Comprueba el servicio desde /health y consulta /docs para revisar las rutas disponibles.
+Comprueba el servicio en /health y revisa las rutas disponibles en /docs.
+
+## Repositorios relacionados
+
+- [Aplicación móvil — rama 3.0](https://github.com/AngelCuevas123/LulistrackApp/tree/lulistrack-3.0)
+- [Dashboard — rama 3.0](https://github.com/AngelCuevas123/LulistrackDashboard/tree/lulistrack-3.0)
 
 ---
 
-**Lulistrack** — API para la gestion y seguimiento de entregas de ultima milla.
+**Lulistrack 3.0** — API para la gestión y seguimiento de entregas de última milla.
