@@ -270,10 +270,17 @@ def complete_order(
         )
 
     if order.status == "entregado":
-        raise HTTPException(
-            status_code=400,
-            detail="Este pedido ya fue entregado"
-        )
+        # Respuesta idempotente: permite reintentar una entrega cuyo primer
+        # envío pudo completarse en el servidor aunque el móvil perdiera la respuesta.
+        return {
+            "success": True,
+            "already_completed": True,
+            "message": "Este pedido ya estaba registrado como entregado",
+            "order_id": order.id,
+            "photo_path": order.photo_path,
+            "signature": order.signature,
+            "proof_timestamp": order.proof_timestamp
+        }
 
     # Convertir imagenes Base64 a bytes
     def decodificar_imagen(valor: str):
