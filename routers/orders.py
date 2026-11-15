@@ -2,6 +2,7 @@
 import os
 import base64
 import binascii
+from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -11,7 +12,7 @@ from uuid import uuid4
 
 from storage import subir_evidencia, obtener_url_temporal
 from database import get_db
-from models import OrderDB, DriverDB
+from models import OrderDB, DriverDB, DriverLocationDB
 from schemas import (
     OrderCreate,
     OrderResponse,
@@ -82,11 +83,21 @@ def track_order_public(
             detail="Pedido no encontrado"
         )
 
+    current_location = None
+
+    # Solo compartir la ubicación reciente mientras el pedido está en tránsito.
+    if order.status == "en_transito" and order.driver_id:
+        current_location = db.query(DriverLocationDB).filter(
+            DriverLocationDB.driver_id == order.driver_id,
+            DriverLocationDB.updated_at >= func.now() - timedelta(minutes=5)
+        ).first()
+
     return {
         "tracking_number": order.tracking_number,
         "status": order.status,
         "estimated_time": order.estimated_time,
-        "proof_timestamp": order.proof_timestamp
+        "proof_timestamp": order.proof_timestamp,
+        "current_location": current_location
     }
 
 
