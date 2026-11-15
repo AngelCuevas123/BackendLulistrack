@@ -101,3 +101,25 @@ class DriverDeviceDB(Base):
         onupdate=func.now(),
         nullable=False
     )
+
+
+class DriverLocationDB(Base):
+    __tablename__ = "driver_locations"
+
+    driver_id = Column(
+        String,
+        ForeignKey("drivers.driver_id"),
+        primary_key=True,
+        index=True
+    )
+
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy = Column(Float, nullable=True)
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
