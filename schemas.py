@@ -67,3 +67,14 @@ class DriverResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+# Registro del Firebase Installation ID de un dispositivo
+class FCMTokenRegister(BaseModel):
+    firebase_installation_id: str = Field(min_length=10)
+    platform: str = Field(pattern="^(android|ios)$")
+
+
+# Respuesta del registro del dispositivo
+class FCMTokenResponse(BaseModel):
+    message: str
+    platform: str

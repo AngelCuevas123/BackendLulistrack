@@ -19,6 +19,7 @@ from schemas import (
     ProofSubmission
 )
 from auth import obtener_usuario_actual, verificar_administrador
+from services.notification_service import enviar_notificacion_repartidor
 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -196,6 +197,29 @@ def assign_order(
 
     db.commit()
     db.refresh(order)
+
+    # Enviar notificación push al repartidor asignado
+    # Un error de Firebase no debe cancelar la asignación del pedido
+    try:
+        resultado = enviar_notificacion_repartidor(
+            db=db,
+            driver_id=driver.driver_id,
+            titulo="¡Nuevo pedido asignado!",
+            cuerpo=(
+                f"Se te asignó el pedido {order.tracking_number}. "
+                "Revisa los detalles en Lulistrack."
+            ),
+            datos={
+                "type": "order_assigned",
+                "order_id": order.id,
+                "tracking_number": order.tracking_number
+            }
+        )
+
+        print(f"Resultado de notificación FCM: {resultado}")
+
+    except Exception as e:
+        print(f"Error al enviar notificación FCM: {repr(e)}")
 
     return order
 

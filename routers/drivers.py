@@ -2,22 +2,27 @@
 import os
 import httpx
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List
 from uuid import uuid4
 
 from database import get_db
-from models import DriverDB
-from schemas import DriverCreate, DriverResponse
+from models import DriverDB, DriverDeviceDB
+from schemas import (
+    DriverCreate,
+    DriverResponse,
+    FCMTokenRegister,
+    FCMTokenResponse
+)
 from auth import obtener_usuario_actual, verificar_administrador
 
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
 
 
-# Configuracion de Supabase
+# Configuración de Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
@@ -53,7 +58,7 @@ def crear_usuario_supabase(driver: DriverCreate):
         if respuesta.status_code in (400, 409, 422):
             raise HTTPException(
                 status_code=409,
-                detail="No se pudo crear la cuenta. El correo podria estar registrado o los datos ser invalidos."
+                detail="No se pudo crear la cuenta. El correo podría estar registrado o los datos ser inválidos."
             )
 
         if respuesta.status_code >= 400:
@@ -68,7 +73,7 @@ def crear_usuario_supabase(driver: DriverCreate):
         if not usuario_id:
             raise HTTPException(
                 status_code=502,
-                detail="Supabase no devolvio el identificador del usuario"
+                detail="Supabase no devolvió el identificador del usuario"
             )
 
         return usuario_id
@@ -82,7 +87,7 @@ def crear_usuario_supabase(driver: DriverCreate):
     except ValueError:
         raise HTTPException(
             status_code=502,
-            detail="Supabase devolvio una respuesta invalida"
+            detail="Supabase devolvió una respuesta inválida"
         )
 
 
@@ -137,7 +142,103 @@ def get_my_driver_profile(
     return driver
 
 
-# 3. Consultar perfil por ID (solo administrador)
+# 3. Registrar o actualizar el FID del repartidor autenticado
+@router.post("/me/fcm-token", response_model=FCMTokenResponse)
+def register_fcm_token(
+    data: FCMTokenRegister,
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    driver = db.query(DriverDB).filter(
+        DriverDB.auth_user_id == usuario["id"]
+    ).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe un perfil de repartidor asociado a esta cuenta"
+        )
+
+    try:
+        device = db.query(DriverDeviceDB).filter(
+            DriverDeviceDB.firebase_installation_id
+            == data.firebase_installation_id
+        ).first()
+
+        if device:
+            device.driver_id = driver.driver_id
+            device.platform = data.platform
+            device.is_active = True
+        else:
+            device = DriverDeviceDB(
+                driver_id=driver.driver_id,
+                firebase_installation_id=data.firebase_installation_id,
+                platform=data.platform,
+                is_active=True
+            )
+            db.add(device)
+
+        db.commit()
+
+        return FCMTokenResponse(
+            message="Firebase Installation ID registrado correctamente",
+            platform=data.platform
+        )
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="No se pudo registrar el identificador del dispositivo"
+        )
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Ocurrió un error al registrar el dispositivo"
+        )
+
+
+# 4. Desactivar el FID al cerrar sesión
+@router.delete("/me/fcm-token", response_model=FCMTokenResponse)
+def unregister_fcm_token(
+    firebase_installation_id: str = Query(..., min_length=10),
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    driver = db.query(DriverDB).filter(
+        DriverDB.auth_user_id == usuario["id"]
+    ).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe un perfil de repartidor asociado a esta cuenta"
+        )
+
+    device = db.query(DriverDeviceDB).filter(
+        DriverDeviceDB.firebase_installation_id
+        == firebase_installation_id,
+        DriverDeviceDB.driver_id == driver.driver_id
+    ).first()
+
+    if not device:
+        return FCMTokenResponse(
+            message="El dispositivo no está registrado para este repartidor",
+            platform="unknown"
+        )
+
+    device.is_active = False
+    db.commit()
+
+    return FCMTokenResponse(
+        message="Dispositivo desactivado correctamente",
+        platform=device.platform
+    )
+
+
+# 5. Consultar perfil por ID (solo administrador)
 @router.get("/{driver_id}", response_model=DriverResponse)
 def get_driver_profile(
     driver_id: str,
@@ -157,7 +258,7 @@ def get_driver_profile(
     return driver
 
 
-# 4. Registrar un nuevo repartidor (solo administrador)
+# 6. Registrar un nuevo repartidor (solo administrador)
 @router.post("/", response_model=DriverResponse, status_code=201)
 def create_driver(
     driver: DriverCreate,
@@ -198,8 +299,7 @@ def create_driver(
 
         raise HTTPException(
             status_code=500,
-            detail="Ocurrio un error al registrar el repartidor"
+            detail="Ocurrió un error al registrar el repartidor"
         )
 
     return nuevo_repartidor
-

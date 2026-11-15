@@ -1,5 +1,6 @@
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,22 +8,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 import models
 
+from firebase_config import inicializar_firebase
 from routers import orders, drivers
 
 
-# Crear las tablas si todavia no existen
+# Crear las tablas si todavía no existen
 Base.metadata.create_all(bind=engine)
 
 
-# Configuracion principal de FastAPI
+# Inicializar servicios durante el ciclo de vida de FastAPI
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    inicializar_firebase()
+    print("Firebase Admin SDK inicializado correctamente")
+
+    yield
+
+    print("Servidor de Lulistrack detenido")
+
+
+# Configuración principal de FastAPI
 app = FastAPI(
     title="Lulistrack API",
-    description="Backend oficial para la gestion de entregas y rutas de Lulistrack",
-    version="1.0.0"
+    description="Backend oficial para la gestión de entregas y rutas de Lulistrack",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 
-# Configuracion CORS para React y Vercel
+# Configuración CORS para React y Vercel
 origins = os.getenv(
     "CORS_ORIGINS",
     "https://lulistrack-dashboard.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
@@ -57,4 +71,3 @@ def health():
         "status": "ok",
         "message": "Lulistrack API funcionando correctamente"
     }
-

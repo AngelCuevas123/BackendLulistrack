@@ -1,5 +1,17 @@
 
-from sqlalchemy import Column, String, Float, Integer, ForeignKey, DateTime, Text
+import uuid
+
+from sqlalchemy import (
+    Column,
+    String,
+    Float,
+    Integer,
+    ForeignKey,
+    DateTime,
+    Text,
+    Boolean,
+    func
+)
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -49,3 +61,43 @@ class OrderDB(Base):
     # Relacion con el repartidor
     driver = relationship("DriverDB", back_populates="orders")
 
+
+class DriverDeviceDB(Base):
+    __tablename__ = "driver_devices"
+
+    id = Column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+
+    driver_id = Column(
+        String,
+        ForeignKey("drivers.driver_id"),
+        nullable=False,
+        index=True
+    )
+
+    firebase_installation_id = Column(
+        String,
+        nullable=False,
+        unique=True,
+        index=True
+    )
+
+    platform = Column(String(20), nullable=False)
+
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
