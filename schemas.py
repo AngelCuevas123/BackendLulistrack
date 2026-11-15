@@ -40,6 +40,14 @@ class OrderResponse(BaseModel):
         from_attributes = True
 
 
+# Informacion publica para consultar el seguimiento de un pedido
+class OrderTrackingResponse(BaseModel):
+    tracking_number: str
+    status: str
+    estimated_time: str
+    proof_timestamp: Optional[datetime] = None
+
+
 # Evidencia de entrega
 class ProofSubmission(BaseModel):
     photo_base64: str
