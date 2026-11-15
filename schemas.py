@@ -53,6 +53,9 @@ class DriverLocationResponse(BaseModel):
     accuracy: Optional[float] = None
     updated_at: datetime
 
+    class Config:
+        from_attributes = True
+
 
 class OrderTrackingResponse(BaseModel):
     tracking_number: str
