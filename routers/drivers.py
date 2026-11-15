@@ -5,16 +5,19 @@ import httpx
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from typing import List
 from uuid import uuid4
 
 from database import get_db
-from models import DriverDB, DriverDeviceDB
+from models import DriverDB, DriverDeviceDB, DriverLocationDB
 from schemas import (
     DriverCreate,
     DriverResponse,
     FCMTokenRegister,
-    FCMTokenResponse
+    FCMTokenResponse,
+    DriverLocationUpdate,
+    DriverLocationResponse
 )
 from auth import obtener_usuario_actual, verificar_administrador
 
@@ -142,7 +145,49 @@ def get_my_driver_profile(
     return driver
 
 
-# 3. Registrar o actualizar el FID del repartidor autenticado
+
+# 3. Actualizar la ubicación del repartidor autenticado
+@router.put("/me/location", response_model=DriverLocationResponse)
+def update_my_location(
+    data: DriverLocationUpdate,
+    usuario: dict = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    driver = db.query(DriverDB).filter(
+        DriverDB.auth_user_id == usuario["id"]
+    ).first()
+
+    if not driver:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe un perfil de repartidor asociado a esta cuenta"
+        )
+
+    location = db.query(DriverLocationDB).filter(
+        DriverLocationDB.driver_id == driver.driver_id
+    ).first()
+
+    if location is None:
+        location = DriverLocationDB(
+            driver_id=driver.driver_id,
+            latitude=data.latitude,
+            longitude=data.longitude,
+            accuracy=data.accuracy
+        )
+        db.add(location)
+    else:
+        location.latitude = data.latitude
+        location.longitude = data.longitude
+        location.accuracy = data.accuracy
+        location.updated_at = func.now()
+
+    db.commit()
+    db.refresh(location)
+
+    return location
+
+
+# 4. Registrar o actualizar el FID del repartidor autenticado
 @router.post("/me/fcm-token", response_model=FCMTokenResponse)
 def register_fcm_token(
     data: FCMTokenRegister,
