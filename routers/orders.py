@@ -16,7 +16,8 @@ from schemas import (
     OrderCreate,
     OrderResponse,
     OrderAssign,
-    ProofSubmission
+    ProofSubmission,
+    OrderTrackingResponse
 )
 from auth import obtener_usuario_actual, verificar_administrador
 from services.notification_service import enviar_notificacion_repartidor
@@ -53,6 +54,40 @@ def obtener_repartidor(usuario: dict, db: Session):
         )
 
     return driver
+
+
+# Consulta publica de seguimiento: solo devuelve datos no sensibles
+@router.get("/track/{tracking_number}", response_model=OrderTrackingResponse)
+def track_order_public(
+    tracking_number: str,
+    db: Session = Depends(get_db)
+):
+    numero_limpio = tracking_number.replace("#", "").strip().lower()
+
+    if not numero_limpio:
+        raise HTTPException(
+            status_code=404,
+            detail="Pedido no encontrado"
+        )
+
+    order = db.query(OrderDB).filter(
+        func.lower(
+            func.replace(OrderDB.tracking_number, "#", "")
+        ) == numero_limpio
+    ).first()
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="Pedido no encontrado"
+        )
+
+    return {
+        "tracking_number": order.tracking_number,
+        "status": order.status,
+        "estimated_time": order.estimated_time,
+        "proof_timestamp": order.proof_timestamp
+    }
 
 
 # 1. Consultar pedidos activos (solo administrador)
