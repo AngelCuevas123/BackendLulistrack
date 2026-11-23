@@ -28,10 +28,10 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
 # Buscar pedido por ID o numero de seguimiento
-def find_order(db: Session, order_id: str):
+def find_order(db: Session, order_id: str, *, for_update: bool = False):
     clean_id = order_id.replace("#", "").strip().lower()
 
-    return db.query(OrderDB).filter(
+    query = db.query(OrderDB).filter(
         or_(
             func.lower(OrderDB.id) == clean_id,
             func.lower(func.replace(OrderDB.id, "#", "")) == clean_id,
@@ -39,7 +39,13 @@ def find_order(db: Session, order_id: str):
                 func.replace(OrderDB.tracking_number, "#", "")
             ) == clean_id
         )
-    ).first()
+    )
+
+    # Bloquea la fila durante la finalización para serializar reintentos concurrentes.
+    if for_update:
+        query = query.with_for_update()
+
+    return query.first()
 
 
 # Obtener el perfil del repartidor autenticado
@@ -325,7 +331,9 @@ def complete_order(
 ):
     driver = obtener_repartidor(usuario, db)
 
-    order = find_order(db, order_id)
+    # El bloqueo evita que dos solicitudes simultáneas incrementen dos veces
+    # el contador del repartidor o reemplacen evidencia de una entrega confirmada.
+    order = find_order(db, order_id, for_update=True)
 
     if not order:
         raise HTTPException(
