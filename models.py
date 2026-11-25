@@ -43,6 +43,8 @@ class OrderDB(Base):
     colony = Column(String, nullable=False)
     estimated_time = Column(String, nullable=False)
     status = Column(String, default="en_transito")
+    # Fecha de creación; nullable para no inventar fechas de pedidos históricos.
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True, index=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
 
