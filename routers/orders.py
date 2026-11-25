@@ -12,7 +12,13 @@ from uuid import uuid4
 
 from storage import subir_evidencia, obtener_url_temporal
 from database import get_db
-from models import OrderDB, DriverDB, DriverLocationDB
+from models import (
+    OrderDB,
+    DriverDB,
+    DriverLocationDB,
+    InventoryProductDB,
+    OrderItemDB
+)
 from schemas import (
     OrderCreate,
     OrderResponse,
@@ -202,8 +208,52 @@ def create_order(
     db.add(new_order)
 
     try:
+        # Validar y descontar existencias dentro de la misma transacción
+        # para impedir que dos pedidos consuman simultáneamente el mismo stock.
+        cantidades = {}
+        for item in order.items:
+            cantidades[item.product_id] = (
+                cantidades.get(item.product_id, 0) + item.quantity
+            )
+
+        for product_id, quantity in cantidades.items():
+            product = db.query(InventoryProductDB).filter(
+                InventoryProductDB.id == product_id
+            ).with_for_update().first()
+
+            if not product or not product.is_active:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Uno de los productos seleccionados ya no está disponible"
+                )
+
+            if product.stock_quantity < quantity:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Stock insuficiente para {product.name}. "
+                        f"Disponible: {product.stock_quantity}; solicitado: {quantity}."
+                    )
+                )
+
+            product.stock_quantity -= quantity
+
+            db.add(OrderItemDB(
+                id=f"itm-{uuid4().hex[:10]}",
+                order_id=new_order.id,
+                product_id=product.id,
+                product_name=product.name,
+                sku=product.sku,
+                quantity=quantity,
+                unit_price=product.unit_price
+            ))
+
         db.commit()
         db.refresh(new_order)
+
+    except HTTPException:
+        db.rollback()
+        raise
 
     except Exception:
         db.rollback()
