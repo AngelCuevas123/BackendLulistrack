@@ -46,6 +46,7 @@ class OrderResponse(BaseModel):
     colony: str
     estimated_time: str
     status: str
+    created_at: Optional[datetime] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     driver_id: Optional[str] = None
