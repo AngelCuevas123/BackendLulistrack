@@ -9,7 +9,7 @@ from database import engine, Base
 import models
 
 from firebase_config import inicializar_firebase
-from routers import orders, drivers
+from routers import orders, drivers, inventory
 
 
 # Crear las tablas si todavía no existen
@@ -54,6 +54,7 @@ app.add_middleware(
 # Registrar los routers
 app.include_router(orders.router)
 app.include_router(drivers.router)
+app.include_router(inventory.router)
 
 
 # Ruta principal
