@@ -84,7 +84,11 @@ def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    values = changes.dict(exclude_unset=True)
+    values = {
+        key: value
+        for key, value in changes.dict(exclude_unset=True).items()
+        if value is not None or key == "description"
+    }
 
     if "sku" in values and values["sku"] is not None:
         values["sku"] = values["sku"].strip().upper()
