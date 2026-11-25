@@ -216,7 +216,7 @@ def create_order(
                 cantidades.get(item.product_id, 0) + item.quantity
             )
 
-        for product_id, quantity in cantidades.items():
+        for product_id, quantity in sorted(cantidades.items()):
             product = db.query(InventoryProductDB).filter(
                 InventoryProductDB.id == product_id
             ).with_for_update().first()
