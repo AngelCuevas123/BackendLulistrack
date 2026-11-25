@@ -131,7 +131,7 @@ def get_all_orders(
     db: Session = Depends(get_db),
     usuario: dict = Depends(verificar_administrador)
 ):
-    return db.query(OrderDB).all()
+    return db.query(OrderDB).order_by(OrderDB.created_at.desc().nullslast()).all()
 
 
 # 3. Consultar historial de entregas (solo administrador)
@@ -142,7 +142,7 @@ def get_completed_orders(
 ):
     return db.query(OrderDB).filter(
         OrderDB.status == "entregado"
-    ).all()
+    ).order_by(OrderDB.proof_timestamp.desc().nullslast()).all()
 
 
 # 4. Consultar pedidos activos del repartidor autenticado
