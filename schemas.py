@@ -26,6 +26,17 @@ class OrderAssign(BaseModel):
     driver_id: str
 
 
+class OrderItemResponse(BaseModel):
+    product_id: str
+    product_name: str
+    sku: str
+    quantity: int
+    unit_price: float
+
+    class Config:
+        from_attributes = True
+
+
 # Respuesta de los pedidos
 class OrderResponse(BaseModel):
     id: str
@@ -41,6 +52,7 @@ class OrderResponse(BaseModel):
     photo_path: Optional[str] = None
     signature: Optional[str] = None
     proof_timestamp: Optional[datetime] = None
+    items: List[OrderItemResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
