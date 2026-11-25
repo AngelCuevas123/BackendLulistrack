@@ -4,6 +4,11 @@ from typing import Optional, List
 from datetime import datetime
 
 
+class OrderItemCreate(BaseModel):
+    product_id: str = Field(min_length=1, max_length=80)
+    quantity: int = Field(gt=0, le=10000)
+
+
 # Datos necesarios para registrar un pedido
 class OrderCreate(BaseModel):
     tracking_number: str
@@ -13,6 +18,7 @@ class OrderCreate(BaseModel):
     estimated_time: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    items: List[OrderItemCreate] = Field(default_factory=list)
 
 
 # Datos para asignar un repartidor
@@ -103,3 +109,41 @@ class FCMTokenRegister(BaseModel):
 class FCMTokenResponse(BaseModel):
     message: str
     platform: str
+
+
+class InventoryProductCreate(BaseModel):
+    sku: str = Field(min_length=2, max_length=40)
+    name: str = Field(min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    unit: str = Field(default="pieza", min_length=1, max_length=30)
+    stock_quantity: int = Field(default=0, ge=0, le=100000000)
+    min_stock: int = Field(default=0, ge=0, le=100000000)
+    unit_price: float = Field(default=0, ge=0, le=100000000)
+
+
+class InventoryProductUpdate(BaseModel):
+    sku: Optional[str] = Field(default=None, min_length=2, max_length=40)
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    unit: Optional[str] = Field(default=None, min_length=1, max_length=30)
+    stock_quantity: Optional[int] = Field(default=None, ge=0, le=100000000)
+    min_stock: Optional[int] = Field(default=None, ge=0, le=100000000)
+    unit_price: Optional[float] = Field(default=None, ge=0, le=100000000)
+    is_active: Optional[bool] = None
+
+
+class InventoryProductResponse(BaseModel):
+    id: str
+    sku: str
+    name: str
+    description: Optional[str] = None
+    unit: str
+    stock_quantity: int
+    min_stock: int
+    unit_price: float
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
