@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
 from typing import List
 from uuid import uuid4
@@ -254,6 +255,13 @@ def create_order(
     except HTTPException:
         db.rollback()
         raise
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Ya existe un pedido con ese número de seguimiento"
+        )
 
     except Exception:
         db.rollback()
