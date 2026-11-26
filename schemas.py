@@ -16,6 +16,14 @@ class OrderCreate(BaseModel):
     client_name: str
     address: str
     colony: str
+    postal_code: Optional[str] = Field(default=None, pattern=r"^\\d{5}$")
+    state: Optional[str] = None
+    municipality: Optional[str] = None
+    locality: Optional[str] = None
+    street: Optional[str] = None
+    exterior_number: Optional[str] = None
+    interior_number: Optional[str] = None
+    address_references: Optional[str] = None
     estimated_time: str
     is_priority: bool = False
     latitude: Optional[float] = None
@@ -51,6 +59,14 @@ class OrderResponse(BaseModel):
     client_name: str
     address: str
     colony: str
+    postal_code: Optional[str] = None
+    state: Optional[str] = None
+    municipality: Optional[str] = None
+    locality: Optional[str] = None
+    street: Optional[str] = None
+    exterior_number: Optional[str] = None
+    interior_number: Optional[str] = None
+    address_references: Optional[str] = None
     estimated_time: str
     status: str
     is_priority: bool = False
