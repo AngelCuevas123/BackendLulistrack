@@ -57,7 +57,7 @@ def lookup_postal_code(
 @router.get("/search")
 def search_address(
     q: str = Query(..., min_length=2, max_length=120),
-    postal_code: str | None = Query(default=None, pattern=r"^\\d{5}$"),
+    postal_code: str | None = Query(default=None, pattern=r"^\d{5}$"),
     locality: str | None = None,
     municipality: str | None = None,
     state: str | None = None,
