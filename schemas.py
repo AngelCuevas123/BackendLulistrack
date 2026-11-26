@@ -11,14 +11,21 @@ class OrderItemCreate(BaseModel):
 
 # Datos necesarios para registrar un pedido
 class OrderCreate(BaseModel):
-    tracking_number: str
+    # El servidor genera el número definitivo; opcional por compatibilidad móvil.
+    tracking_number: Optional[str] = None
     client_name: str
     address: str
     colony: str
     estimated_time: str
+    is_priority: bool = False
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     items: List[OrderItemCreate] = Field(default_factory=list)
+
+
+# Actualización de prioridad de un pedido (solo administrador)
+class OrderPriorityUpdate(BaseModel):
+    is_priority: bool
 
 
 # Datos para asignar un repartidor
@@ -46,6 +53,7 @@ class OrderResponse(BaseModel):
     colony: str
     estimated_time: str
     status: str
+    is_priority: bool = False
     created_at: Optional[datetime] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
