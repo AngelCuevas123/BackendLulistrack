@@ -16,7 +16,7 @@ class OrderCreate(BaseModel):
     client_name: str
     address: str
     colony: str
-    postal_code: Optional[str] = Field(default=None, pattern=r"^\\d{5}$")
+    postal_code: Optional[str] = Field(default=None, pattern=r"^\d{5}$")
     state: Optional[str] = None
     municipality: Optional[str] = None
     locality: Optional[str] = None
