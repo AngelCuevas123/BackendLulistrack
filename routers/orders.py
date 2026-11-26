@@ -2,12 +2,13 @@
 import os
 import base64
 import binascii
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 from typing import List
 from uuid import uuid4
 
@@ -24,6 +25,7 @@ from schemas import (
     OrderCreate,
     OrderResponse,
     OrderAssign,
+    OrderPriorityUpdate,
     ProofSubmission,
     OrderTrackingResponse
 )
@@ -194,13 +196,22 @@ def create_order(
     db: Session = Depends(get_db),
     usuario: dict = Depends(verificar_administrador)
 ):
+    sequence_value = db.execute(
+        text("SELECT nextval('order_tracking_number_seq')")
+    ).scalar_one()
+    tracking_number = (
+        f"LUL-{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d')}-"
+        f"{sequence_value:06d}"
+    )
+
     new_order = OrderDB(
         id=f"ord-{uuid4().hex[:10]}",
-        tracking_number=order.tracking_number,
+        tracking_number=tracking_number,
         client_name=order.client_name,
         address=order.address,
         colony=order.colony,
         estimated_time=order.estimated_time,
+        is_priority=order.is_priority,
         latitude=order.latitude,
         longitude=order.longitude,
         status="pendiente"
@@ -268,6 +279,31 @@ def create_order(
         raise
 
     return new_order
+
+
+# Actualizar prioridad de un pedido (solo administrador)
+@router.patch("/{order_id}/priority", response_model=OrderResponse)
+def update_order_priority(
+    order_id: str,
+    update: OrderPriorityUpdate,
+    db: Session = Depends(get_db),
+    usuario: dict = Depends(verificar_administrador)
+):
+    order = find_order(db, order_id)
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    if order.status == "entregado" and update.is_priority:
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede marcar como prioritario un pedido ya entregado"
+        )
+
+    order.is_priority = update.is_priority
+    db.commit()
+    db.refresh(order)
+    return order
 
 
 # 8. Asignar un pedido a un repartidor (solo administrador)
