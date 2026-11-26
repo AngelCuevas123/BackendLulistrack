@@ -160,3 +160,37 @@ class InventoryProductResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Solicitud para calcular una ruta de un pedido asignado al repartidor.
+class RoutePreviewRequest(BaseModel):
+    order_id: str = Field(min_length=1, max_length=80)
+    # Flutter puede enviar su GPS actual; si se omite, se usa la última
+    # ubicación guardada del repartidor (máximo 5 minutos de antigüedad).
+    origin_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    origin_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    preference: str = Field(
+        default="recommended",
+        pattern="^(recommended|fastest|shortest)$"
+    )
+
+
+class RouteStepResponse(BaseModel):
+    instruction: str
+    name: Optional[str] = None
+    distance_meters: float
+    duration_seconds: float
+    type: Optional[int] = None
+
+
+class RoutePreviewResponse(BaseModel):
+    profile: str
+    preference: str
+    # GeoJSON: cada punto conserva el orden [longitud, latitud].
+    geometry: List[List[float]]
+    distance_meters: float
+    duration_seconds: float
+    distance_km: float
+    duration_minutes: float
+    estimated_arrival_at: datetime
+    steps: List[RouteStepResponse] = Field(default_factory=list)
+
