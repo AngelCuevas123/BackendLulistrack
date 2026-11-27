@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 ORS_API_KEY = os.getenv("ORS_API_KEY", "").strip()
 ORS_BASE_URL = os.getenv(
     "ORS_BASE_URL",
-    "https://api.openrouteservice.org/v2/directions"
+    "https://api.heigit.org/openrouteservice/v2/directions"
 ).rstrip("/")
 
 
@@ -97,6 +97,11 @@ def calcular_ruta(
             raise HTTPException(
                 status_code=422,
                 detail="OpenRouteService no encontró una ruta válida; revisa las coordenadas y los parámetros"
+            )
+        if response.status_code == 410:
+            raise HTTPException(
+                status_code=502,
+                detail="La URL configurada para OpenRouteService está retirada; actualiza ORS_BASE_URL en el servidor"
             )
         if response.status_code >= 500:
             raise HTTPException(
