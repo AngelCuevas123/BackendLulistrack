@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -5,6 +6,8 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 
+
+logger = logging.getLogger(__name__)
 
 ORS_API_KEY = os.getenv("ORS_API_KEY", "").strip()
 ORS_BASE_URL = os.getenv(
@@ -55,37 +58,51 @@ def calcular_ruta(
             timeout=25.0,
         )
     except httpx.TimeoutException:
+        logger.warning("ORS timeout al solicitar una ruta (25 segundos)")
         raise HTTPException(
             status_code=504,
             detail="El servicio de rutas tardó demasiado en responder"
         )
-    except httpx.RequestError:
+    except httpx.RequestError as exc:
+        # No registrar headers ni la excepción completa: podrían incluir datos
+        # de la solicitud. El tipo basta para diagnosticar conectividad.
+        logger.warning("Error de conexión con ORS: %s", type(exc).__name__)
         raise HTTPException(
             status_code=503,
             detail="No fue posible conectar con el servicio de rutas"
         )
 
-    if response.status_code == 429:
-        raise HTTPException(
-            status_code=429,
-            detail="Se alcanzó el límite temporal de consultas de rutas"
-        )
-    if response.status_code in (401, 403):
-        raise HTTPException(
-            status_code=502,
-            detail="El proveedor de rutas rechazó la configuración del servidor"
-        )
-    if response.status_code in (400, 404):
-        raise HTTPException(
-            status_code=422,
-            detail="No se encontró una ruta válida entre las ubicaciones indicadas"
-        )
-    if response.status_code >= 500:
-        raise HTTPException(
-            status_code=503,
-            detail="El servicio externo de rutas no está disponible temporalmente"
-        )
     if response.status_code >= 400:
+        # El cuerpo de error de ORS ayuda a distinguir claves inválidas,
+        # parámetros incorrectos, cuotas y fallos del proveedor. Nunca se
+        # registra el encabezado Authorization ni la API Key.
+        provider_error = " ".join(response.text.split())[:1000]
+        logger.error(
+            "ORS respondió HTTP %s. Detalle del proveedor: %s",
+            response.status_code,
+            provider_error or "(respuesta vacía)",
+        )
+
+        if response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Se alcanzó el límite temporal de consultas de rutas"
+            )
+        if response.status_code in (401, 403):
+            raise HTTPException(
+                status_code=502,
+                detail="OpenRouteService rechazó las credenciales del servidor (revisar ORS_API_KEY)"
+            )
+        if response.status_code in (400, 404):
+            raise HTTPException(
+                status_code=422,
+                detail="OpenRouteService no encontró una ruta válida; revisa las coordenadas y los parámetros"
+            )
+        if response.status_code >= 500:
+            raise HTTPException(
+                status_code=503,
+                detail="El servicio externo de rutas no está disponible temporalmente"
+            )
         raise HTTPException(
             status_code=502,
             detail="El servicio externo de rutas devolvió una respuesta inesperada"
@@ -97,7 +114,12 @@ def calcular_ruta(
         geometry = feature["geometry"]
         properties = feature["properties"]
         summary = properties["summary"]
-    except (ValueError, KeyError, IndexError, TypeError):
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        logger.error(
+            "Respuesta exitosa de ORS con formato inesperado (HTTP %s): %s",
+            response.status_code,
+            type(exc).__name__,
+        )
         raise HTTPException(
             status_code=502,
             detail="El proveedor de rutas devolvió datos incompletos"
@@ -110,8 +132,16 @@ def calcular_ruta(
             detail="El proveedor no devolvió una geometría de ruta válida"
         )
 
-    distance_meters = float(summary.get("distance", 0))
-    duration_seconds = float(summary.get("duration", 0))
+    try:
+        distance_meters = float(summary.get("distance", 0))
+        duration_seconds = float(summary.get("duration", 0))
+    except (TypeError, ValueError):
+        logger.error("ORS devolvió distancia o duración con formato inválido")
+        raise HTTPException(
+            status_code=502,
+            detail="El proveedor de rutas devolvió métricas con formato inválido"
+        )
+
     if distance_meters <= 0 or duration_seconds <= 0:
         raise HTTPException(
             status_code=422,
